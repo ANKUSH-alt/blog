@@ -83,7 +83,23 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
                             const [isLoading, setIsLoading] = useState(true);
 
                             useEffect(() => {
-                                if (src && typeof src === 'string' && (src.includes('image.pollinations.ai/prompt/') || src.startsWith('unsplash:'))) {
+                                // Only proceed if src is a string
+                                if (typeof src !== 'string') {
+                                    setHasError(true);
+                                    setIsLoading(false);
+                                    return;
+                                }
+
+                                // If it's a direct URL, set it and stop loading
+                                if (src.startsWith('http')) {
+                                    setImgSrc(src);
+                                    setIsLoading(false);
+                                    setHasError(false);
+                                    return;
+                                }
+
+                                // Handle special image generation/fetching cases
+                                if (src.includes('image.pollinations.ai/prompt/') || src.startsWith('unsplash:')) {
                                     let query = "";
                                     if (src.includes('image.pollinations.ai/prompt/')) {
                                         const match = src.match(/\/prompt\/([^?]+)/);
@@ -100,19 +116,26 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
                                                 const url = data.urls?.regular || data[0]?.urls?.regular;
                                                 if (url) {
                                                     setImgSrc(url);
-                                                } else if (src.startsWith('unsplash:')) {
+                                                    setHasError(false);
+                                                    setIsLoading(false); // Image URL found, stop loading
+                                                } else { // No URL found from Unsplash
                                                     setHasError(true);
                                                     setIsLoading(false);
                                                 }
                                             })
                                             .catch(err => {
                                                 console.error("Unsplash replacement failed", err);
-                                                if (src.startsWith('unsplash:')) {
-                                                    setHasError(true);
-                                                    setIsLoading(false);
-                                                }
+                                                setHasError(true);
+                                                setIsLoading(false);
                                             });
+                                    } else { // No query for Unsplash/Pollinations
+                                        setHasError(true);
+                                        setIsLoading(false);
                                     }
+                                } else {
+                                    // If we got here and it's not a URL or a special tag, it's likely a broken tag
+                                    setHasError(true);
+                                    setIsLoading(false);
                                 }
                             }, [src]);
 
@@ -120,6 +143,7 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
                                 setIsLoading(true);
                                 setHasError(false);
                                 if (typeof src === 'string') {
+                                    // Append a unique query parameter to force a re-fetch
                                     setImgSrc(src + (src.includes('?') ? '&' : '?') + 'retry=' + new Date().getTime());
                                 }
                             };
@@ -133,7 +157,7 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
                                         </span>
                                     )}
 
-                                    {!hasError ? (
+                                    {!hasError && imgSrc && typeof imgSrc === 'string' && !imgSrc.startsWith('unsplash:') ? (
                                         <img
                                             src={imgSrc}
                                             alt={alt}
@@ -147,7 +171,7 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
                                             }}
                                             {...props}
                                         />
-                                    ) : (
+                                    ) : hasError ? (
                                         <span className="flex flex-col items-center justify-center text-center p-12 gap-5 w-full bg-red-950/20 border border-red-500/20 rounded-2xl">
                                             <span className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center border border-red-500/20 shadow-inner">
                                                 <ImageIcon className="w-10 h-10 text-red-400 opacity-80" />
@@ -164,7 +188,7 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
                                                 <Zap className="w-4 h-4" /> Try Fetching Again
                                             </button>
                                         </span>
-                                    )}
+                                    ) : null}
 
                                     {!isLoading && !hasError && alt && (
                                         <span className="block absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-6 pt-12 text-center text-sm text-white font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300 translate-y-4 group-hover:translate-y-0 backdrop-blur-sm">
