@@ -4,8 +4,8 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
-import { useState, useEffect } from 'react'
-import { Check, Copy, Terminal, ImageIcon, Zap } from 'lucide-react'
+import { useState } from 'react'
+import { Check, Copy, Terminal } from 'lucide-react'
 
 interface MarkdownRendererProps {
     content: string
@@ -78,210 +78,24 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
                     },
                     img: ({ src, alt, ...props }) => {
                         const FallbackImage = () => {
+                            // Since AI image generation is disabled, we drop any legacy generated tags to prevent broken UI
                             const isIntercepted = typeof src === 'string' && (src.includes('image.pollinations.ai/prompt/') || src.startsWith('unsplash:'));
-                            const [imgSrc, setImgSrc] = useState(isIntercepted ? "" : src);
-                            const [hasError, setHasError] = useState(false);
-                            const [isLoading, setIsLoading] = useState(true);
-                            const [retryCount, setRetryCount] = useState(0);
-                            const MAX_RETRIES = 2;
-                            const FETCH_TIMEOUT_MS = 5000;
 
-                            const fetchImageWithTimeout = async (url: string, options: RequestInit = {}) => {
-                                const controller = new AbortController();
-                                const id = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-                                try {
-                                    const response = await fetch(url, {
-                                        ...options,
-                                        signal: controller.signal
-                                    });
-                                    clearTimeout(id);
-                                    if (!response.ok) {
-                                        throw new Error(`HTTP error! status: ${response.status}`);
-                                    }
-                                    return response;
-                                } catch (error) {
-                                    clearTimeout(id);
-                                    throw error;
-                                }
-                            };
-
-                            useEffect(() => {
-                                let isMounted = true;
-
-                                const loadImage = async () => {
-                                    if (!isMounted) return;
-
-                                    setIsLoading(true);
-                                    setHasError(false);
-
-                                    // Only proceed if src is a string
-                                    if (typeof src !== 'string') {
-                                        console.error("[MarkdownRenderer] Image src is not a valid string.", { src });
-                                        if (isMounted) {
-                                            setHasError(true);
-                                            setIsLoading(false);
-                                        }
-                                        return;
-                                    }
-
-                                    // Handle special image generation/fetching cases
-                                    if (isIntercepted) {
-                                        let query = "";
-                                        if (src.includes('image.pollinations.ai/prompt/')) {
-                                            const match = src.match(/\/prompt\/([^?]+)/);
-                                            if (match) query = match[1];
-                                        } else if (src.startsWith('unsplash:')) {
-                                            query = src.replace('unsplash:', '');
-                                        }
-
-                                        if (query) {
-                                            try {
-                                                // Sanitize query to exactly 1-2 generic keywords to prevent 404s from Unsplash
-                                                // Even if AI didn't follow the short prompt rule, we force it here.
-                                                const decodedQuery = decodeURIComponent(query);
-                                                // Extract just the first 1-2 actual words, ignoring punctuation
-                                                const cleanKeywords = decodedQuery
-                                                    .replace(/[^\w\s-]/g, ' ')
-                                                    .split(/[\s]+/)
-                                                    .filter(w => w.length > 2) // Ignore tiny words like 'a', 'of'
-                                                    .slice(0, 2)
-                                                    .join(',');
-
-                                                // Fallback to "technology" if somehow cleaning nuked the prompt
-                                                const finalQuery = cleanKeywords || "technology";
-
-                                                const accessKey = process.env.NEXT_PUBLIC_UNSPLASH_ACCESS_KEY;
-                                                const url = `https://api.unsplash.com/photos/random?query=${encodeURIComponent(finalQuery)}&client_id=${accessKey}`;
-                                                const res = await fetchImageWithTimeout(url);
-                                                const data = await res.json();
-
-                                                const imageUrl = data.urls?.regular || data[0]?.urls?.regular;
-
-                                                if (isMounted) {
-                                                    if (imageUrl) {
-                                                        setImgSrc(imageUrl);
-                                                        setHasError(false);
-                                                        // Note: We don't set isLoading(false) here because the actual <img> tag still needs to load the URL
-                                                    } else {
-                                                        console.error("[MarkdownRenderer] No URL found from Unsplash response.", { data });
-                                                        setHasError(true);
-                                                        setIsLoading(false);
-                                                    }
-                                                }
-                                            } catch (err: any) {
-                                                if (isMounted) {
-                                                    console.error(`[MarkdownRenderer] Fetch failed for query "${query}":`, err.message || err);
-                                                    setHasError(true);
-                                                    setIsLoading(false);
-                                                }
-                                            }
-                                        } else {
-                                            // No query for Unsplash/Pollinations
-                                            console.error("[MarkdownRenderer] Intercepted image URL had no recognizable query.", { src });
-                                            if (isMounted) {
-                                                setHasError(true);
-                                                setIsLoading(false);
-                                            }
-                                        }
-                                    } else if (src.startsWith('http') || src.startsWith('/')) {
-                                        // If it's a direct generic URL, set it and let the <img> tag load it
-                                        if (isMounted) {
-                                            setImgSrc(src);
-                                            setIsLoading(true); // Let the onLoad handler of <img> clear this
-                                            setHasError(false);
-                                        }
-                                    } else {
-                                        // If we got here and it's not a URL or a special tag, it's likely a broken tag
-                                        console.error("[MarkdownRenderer] Image tag has unrecognized src format.", { src });
-                                        if (isMounted) {
-                                            setHasError(true);
-                                            setIsLoading(false);
-                                        }
-                                    }
-                                };
-
-                                loadImage();
-
-                                return () => {
-                                    isMounted = false;
-                                };
-                            }, [src, retryCount, isIntercepted]);
-
-                            const handleRetry = () => {
-                                if (retryCount >= MAX_RETRIES) return;
-
-                                console.log(`[MarkdownRenderer] Retrying image fetch (${retryCount + 1}/${MAX_RETRIES})...`);
-                                setIsLoading(true);
-                                setHasError(false);
-
-                                if (isIntercepted) {
-                                    setImgSrc("");
-                                    setRetryCount(prev => prev + 1);
-                                } else if (typeof src === 'string') {
-                                    // Append a unique query parameter to force a re-fetch of basic URLs
-                                    setImgSrc(src + (src.includes('?') ? '&' : '?') + 'retry=' + new Date().getTime());
-                                    setRetryCount(prev => prev + 1);
-                                }
-                            };
+                            if (isIntercepted) {
+                                return null;
+                            }
 
                             return (
-                                <span className="block my-10 relative min-h-[300px] flex items-center justify-center bg-zinc-900/50 rounded-2xl border border-white/5 overflow-hidden w-full group">
-                                    {isLoading && !hasError && (
-                                        <span className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-background/80 backdrop-blur z-10">
-                                            <span className="w-10 h-10 rounded-full border-4 border-primary border-t-transparent animate-spin shadow-[0_0_15px_rgba(var(--primary),0.5)]"></span>
-                                            <span className="text-sm font-medium tracking-wide text-foreground animate-pulse">Loading graphic...</span>
-                                        </span>
-                                    )}
-
-                                    {!hasError && imgSrc && typeof imgSrc === 'string' && !imgSrc.startsWith('unsplash:') ? (
-                                        <img
-                                            src={imgSrc}
-                                            alt={alt || "Content visualization"}
-                                            className={`rounded-2xl max-w-full w-full object-cover transition-all duration-700 ease-in-out ${isLoading ? 'opacity-0 scale-105' : 'opacity-100 scale-100 group-hover:scale-[1.02]'}`}
-                                            loading="lazy"
-                                            onLoad={() => setIsLoading(false)}
-                                            onError={() => {
-                                                console.error(`[MarkdownRenderer] Failed to load actual image element from src: ${imgSrc}`);
-                                                setHasError(true);
-                                                setIsLoading(false);
-                                            }}
-                                            {...props}
-                                        />
-                                    ) : hasError ? (
-                                        <span className="flex flex-col items-center justify-center w-full relative group/fallback min-h-[250px] overflow-hidden rounded-2xl border border-white/5 bg-zinc-950/80 my-8">
-                                            <img
-                                                src="/assets/fallback-image.svg"
-                                                alt="Fallback placeholder"
-                                                className="absolute inset-0 w-full h-full object-cover opacity-30 mix-blend-luminosity pointer-events-none"
-                                                loading="lazy"
-                                            />
-                                            <span className="relative z-10 flex flex-col items-center justify-center text-center p-8 w-full h-full">
-                                                <span className="block max-w-md">
-                                                    <strong className="block text-white/90 font-semibold text-lg mb-2">Image visualization unavailable</strong>
-                                                    <span className="block text-sm text-zinc-400 leading-relaxed drop-shadow-md">
-                                                        We couldn't generate or load this visualization right now.
-                                                        {alt && <span className="block mt-2 italic opacity-80 text-zinc-500">&quot;{alt}&quot;</span>}
-                                                    </span>
-                                                </span>
-
-                                                {retryCount < MAX_RETRIES ? (
-                                                    <button
-                                                        onClick={(e) => { e.preventDefault(); handleRetry(); }}
-                                                        className="mt-6 px-5 py-2.5 rounded-xl bg-white/5 text-white border border-white/10 hover:bg-white/10 hover:shadow-lg transition-all font-semibold flex items-center gap-2 text-sm backdrop-blur-md"
-                                                    >
-                                                        <Zap className="w-4 h-4" /> Try Again {retryCount > 0 && `(${retryCount}/${MAX_RETRIES})`}
-                                                    </button>
-                                                ) : (
-                                                    <span className="text-xs object-bottom text-white/50 mt-6 px-4 py-2 bg-black/40 rounded-full backdrop-blur-md border border-white/5">
-                                                        Maximum retry attempts reached
-                                                    </span>
-                                                )}
-                                            </span>
-                                        </span>
-                                    ) : null}
-
-                                    {!isLoading && !hasError && alt && (
-                                        <span className="block absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-6 pt-12 text-center text-sm text-white font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300 translate-y-4 group-hover:translate-y-0 backdrop-blur-sm">
+                                <span className="block my-8 flex items-center justify-center w-full group relative">
+                                    <img
+                                        src={typeof src === 'string' ? src : ""}
+                                        alt={alt || "Blog image"}
+                                        className="rounded-2xl max-w-full w-full object-cover border border-white/5 shadow-lg"
+                                        loading="lazy"
+                                        {...props}
+                                    />
+                                    {alt && (
+                                        <span className="max-md:hidden block absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-6 pt-12 text-center text-sm text-white font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300 translate-y-4 group-hover:translate-y-0 backdrop-blur-sm rounded-b-2xl">
                                             {alt}
                                         </span>
                                     )}
