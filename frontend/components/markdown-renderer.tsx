@@ -4,7 +4,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Check, Copy, Terminal, ImageIcon, Zap } from 'lucide-react'
 
 interface MarkdownRendererProps {
@@ -81,6 +81,40 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
                             const [imgSrc, setImgSrc] = useState(src);
                             const [hasError, setHasError] = useState(false);
                             const [isLoading, setIsLoading] = useState(true);
+
+                            useEffect(() => {
+                                if (src && typeof src === 'string' && (src.includes('image.pollinations.ai/prompt/') || src.startsWith('unsplash:'))) {
+                                    let query = "";
+                                    if (src.includes('image.pollinations.ai/prompt/')) {
+                                        const match = src.match(/\/prompt\/([^?]+)/);
+                                        if (match) query = match[1];
+                                    } else if (src.startsWith('unsplash:')) {
+                                        query = src.replace('unsplash:', '');
+                                    }
+
+                                    if (query) {
+                                        const accessKey = process.env.NEXT_PUBLIC_UNSPLASH_ACCESS_KEY;
+                                        fetch(`https://api.unsplash.com/photos/random?query=${query}&client_id=${accessKey}`)
+                                            .then(res => res.json())
+                                            .then(data => {
+                                                const url = data.urls?.regular || data[0]?.urls?.regular;
+                                                if (url) {
+                                                    setImgSrc(url);
+                                                } else if (src.startsWith('unsplash:')) {
+                                                    setHasError(true);
+                                                    setIsLoading(false);
+                                                }
+                                            })
+                                            .catch(err => {
+                                                console.error("Unsplash replacement failed", err);
+                                                if (src.startsWith('unsplash:')) {
+                                                    setHasError(true);
+                                                    setIsLoading(false);
+                                                }
+                                            });
+                                    }
+                                }
+                            }, [src]);
 
                             const handleRetry = () => {
                                 setIsLoading(true);
