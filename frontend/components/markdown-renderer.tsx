@@ -83,70 +83,130 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
                             const [hasError, setHasError] = useState(false);
                             const [isLoading, setIsLoading] = useState(true);
                             const [retryCount, setRetryCount] = useState(0);
+                            const MAX_RETRIES = 2;
+                            const FETCH_TIMEOUT_MS = 5000;
+
+                            const fetchImageWithTimeout = async (url: string, options: RequestInit = {}) => {
+                                const controller = new AbortController();
+                                const id = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+                                try {
+                                    const response = await fetch(url, {
+                                        ...options,
+                                        signal: controller.signal
+                                    });
+                                    clearTimeout(id);
+                                    if (!response.ok) {
+                                        throw new Error(`HTTP error! status: ${response.status}`);
+                                    }
+                                    return response;
+                                } catch (error) {
+                                    clearTimeout(id);
+                                    throw error;
+                                }
+                            };
 
                             useEffect(() => {
-                                // Only proceed if src is a string
-                                if (typeof src !== 'string') {
-                                    setHasError(true);
-                                    setIsLoading(false);
-                                    return;
-                                }
+                                let isMounted = true;
 
-                                // Handle special image generation/fetching cases
-                                if (isIntercepted) {
-                                    let query = "";
-                                    if (src.includes('image.pollinations.ai/prompt/')) {
-                                        const match = src.match(/\/prompt\/([^?]+)/);
-                                        if (match) query = match[1];
-                                    } else if (src.startsWith('unsplash:')) {
-                                        query = src.replace('unsplash:', '');
+                                const loadImage = async () => {
+                                    if (!isMounted) return;
+
+                                    setIsLoading(true);
+                                    setHasError(false);
+
+                                    // Only proceed if src is a string
+                                    if (typeof src !== 'string') {
+                                        console.error("[MarkdownRenderer] Image src is not a valid string.", { src });
+                                        if (isMounted) {
+                                            setHasError(true);
+                                            setIsLoading(false);
+                                        }
+                                        return;
                                     }
 
-                                    if (query) {
-                                        const accessKey = process.env.NEXT_PUBLIC_UNSPLASH_ACCESS_KEY;
-                                        fetch(`https://api.unsplash.com/photos/random?query=${query}&client_id=${accessKey}`)
-                                            .then(res => res.json())
-                                            .then(data => {
-                                                const url = data.urls?.regular || data[0]?.urls?.regular;
-                                                if (url) {
-                                                    setImgSrc(url);
-                                                    setHasError(false);
-                                                    setIsLoading(false); // Image URL found, stop loading
-                                                } else { // No URL found from Unsplash
+                                    // Handle special image generation/fetching cases
+                                    if (isIntercepted) {
+                                        let query = "";
+                                        if (src.includes('image.pollinations.ai/prompt/')) {
+                                            const match = src.match(/\/prompt\/([^?]+)/);
+                                            if (match) query = match[1];
+                                        } else if (src.startsWith('unsplash:')) {
+                                            query = src.replace('unsplash:', '');
+                                        }
+
+                                        if (query) {
+                                            try {
+                                                const accessKey = process.env.NEXT_PUBLIC_UNSPLASH_ACCESS_KEY;
+                                                const url = `https://api.unsplash.com/photos/random?query=${query}&client_id=${accessKey}`;
+                                                const res = await fetchImageWithTimeout(url);
+                                                const data = await res.json();
+
+                                                const imageUrl = data.urls?.regular || data[0]?.urls?.regular;
+
+                                                if (isMounted) {
+                                                    if (imageUrl) {
+                                                        setImgSrc(imageUrl);
+                                                        setHasError(false);
+                                                        // Note: We don't set isLoading(false) here because the actual <img> tag still needs to load the URL
+                                                    } else {
+                                                        console.error("[MarkdownRenderer] No URL found from Unsplash response.", { data });
+                                                        setHasError(true);
+                                                        setIsLoading(false);
+                                                    }
+                                                }
+                                            } catch (err: any) {
+                                                if (isMounted) {
+                                                    console.error(`[MarkdownRenderer] Fetch failed for query "${query}":`, err.message || err);
                                                     setHasError(true);
                                                     setIsLoading(false);
                                                 }
-                                            })
-                                            .catch(err => {
-                                                console.error("Unsplash replacement failed", err);
+                                            }
+                                        } else {
+                                            // No query for Unsplash/Pollinations
+                                            console.error("[MarkdownRenderer] Intercepted image URL had no recognizable query.", { src });
+                                            if (isMounted) {
                                                 setHasError(true);
                                                 setIsLoading(false);
-                                            });
-                                    } else { // No query for Unsplash/Pollinations
-                                        setHasError(true);
-                                        setIsLoading(false);
+                                            }
+                                        }
+                                    } else if (src.startsWith('http') || src.startsWith('/')) {
+                                        // If it's a direct generic URL, set it and let the <img> tag load it
+                                        if (isMounted) {
+                                            setImgSrc(src);
+                                            setIsLoading(true); // Let the onLoad handler of <img> clear this
+                                            setHasError(false);
+                                        }
+                                    } else {
+                                        // If we got here and it's not a URL or a special tag, it's likely a broken tag
+                                        console.error("[MarkdownRenderer] Image tag has unrecognized src format.", { src });
+                                        if (isMounted) {
+                                            setHasError(true);
+                                            setIsLoading(false);
+                                        }
                                     }
-                                } else if (src.startsWith('http') || src.startsWith('/')) {
-                                    // If it's a direct generic URL, set it and stop loading
-                                    setImgSrc(src);
-                                    setIsLoading(false);
-                                    setHasError(false);
-                                } else {
-                                    // If we got here and it's not a URL or a special tag, it's likely a broken tag
-                                    setHasError(true);
-                                    setIsLoading(false);
-                                }
+                                };
+
+                                loadImage();
+
+                                return () => {
+                                    isMounted = false;
+                                };
                             }, [src, retryCount, isIntercepted]);
 
                             const handleRetry = () => {
+                                if (retryCount >= MAX_RETRIES) return;
+
+                                console.log(`[MarkdownRenderer] Retrying image fetch (${retryCount + 1}/${MAX_RETRIES})...`);
                                 setIsLoading(true);
                                 setHasError(false);
+
                                 if (isIntercepted) {
                                     setImgSrc("");
                                     setRetryCount(prev => prev + 1);
                                 } else if (typeof src === 'string') {
                                     // Append a unique query parameter to force a re-fetch of basic URLs
                                     setImgSrc(src + (src.includes('?') ? '&' : '?') + 'retry=' + new Date().getTime());
+                                    setRetryCount(prev => prev + 1);
                                 }
                             };
 
@@ -162,33 +222,47 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
                                     {!hasError && imgSrc && typeof imgSrc === 'string' && !imgSrc.startsWith('unsplash:') ? (
                                         <img
                                             src={imgSrc}
-                                            alt={alt}
+                                            alt={alt || "Content visualization"}
                                             className={`rounded-2xl max-w-full w-full object-cover transition-all duration-700 ease-in-out ${isLoading ? 'opacity-0 scale-105' : 'opacity-100 scale-100 group-hover:scale-[1.02]'}`}
                                             loading="lazy"
                                             onLoad={() => setIsLoading(false)}
                                             onError={() => {
-                                                console.error("Failed to load image in markdown content:", imgSrc);
+                                                console.error(`[MarkdownRenderer] Failed to load actual image element from src: ${imgSrc}`);
                                                 setHasError(true);
                                                 setIsLoading(false);
                                             }}
                                             {...props}
                                         />
                                     ) : hasError ? (
-                                        <span className="flex flex-col items-center justify-center text-center p-12 gap-5 w-full bg-red-950/20 border border-red-500/20 rounded-2xl">
-                                            <span className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center border border-red-500/20 shadow-inner">
-                                                <ImageIcon className="w-10 h-10 text-red-400 opacity-80" />
-                                            </span>
-                                            <span className="block">
-                                                <strong className="block text-red-400 font-bold text-lg mb-1">Image Blocked or Unavailable</strong>
-                                                <span className="block text-sm text-zinc-400 max-w-md mx-auto leading-relaxed">Could not automatically fetch: <span className="text-zinc-300 italic">&quot;{alt}&quot;</span>. The generative AI service might be rate-limiting requests.</span>
-                                            </span>
+                                        <span className="flex flex-col items-center justify-center w-full relative group/fallback">
+                                            <img
+                                                src="/assets/fallback-image.svg"
+                                                alt="Fallback placeholder"
+                                                className="rounded-2xl max-w-full w-full object-cover opacity-80 grayscale-[20%]"
+                                                loading="lazy"
+                                            />
+                                            <span className="absolute inset-0 flex flex-col items-center justify-center text-center p-8 bg-black/40 backdrop-blur-sm rounded-2xl opacity-0 group-hover/fallback:opacity-100 transition-opacity duration-300">
+                                                <span className="block max-w-md">
+                                                    <strong className="block text-white font-semibold text-lg mb-2">Image visualization unavailable</strong>
+                                                    <span className="block text-sm text-zinc-300 leading-relaxed drop-shadow-md">
+                                                        We couldn't generate or load this visualization right now.
+                                                        {alt && <span className="block mt-1 italic opacity-80">&quot;{alt}&quot;</span>}
+                                                    </span>
+                                                </span>
 
-                                            <button
-                                                onClick={handleRetry}
-                                                className="mt-4 px-6 py-2.5 rounded-xl bg-primary/10 text-primary border border-primary/20 hover:bg-primary hover:border-primary hover:text-white hover:shadow-[0_0_20px_rgba(var(--primary),0.4)] transition-all font-bold flex items-center gap-2"
-                                            >
-                                                <Zap className="w-4 h-4" /> Try Fetching Again
-                                            </button>
+                                                {retryCount < MAX_RETRIES ? (
+                                                    <button
+                                                        onClick={(e) => { e.preventDefault(); handleRetry(); }}
+                                                        className="mt-4 px-5 py-2.5 rounded-xl bg-white/10 text-white border border-white/20 hover:bg-white hover:text-black hover:shadow-lg transition-all font-semibold flex items-center gap-2 text-sm backdrop-blur-md"
+                                                    >
+                                                        <Zap className="w-4 h-4" /> Try Again {retryCount > 0 && `(${retryCount}/${MAX_RETRIES})`}
+                                                    </button>
+                                                ) : (
+                                                    <span className="text-xs object-bottom text-white/70 mt-4 px-3 py-1 bg-black/40 rounded-full backdrop-blur-md border border-white/10">
+                                                        Maximum retry attempts reached
+                                                    </span>
+                                                )}
+                                            </span>
                                         </span>
                                     ) : null}
 
@@ -206,6 +280,6 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
             >
                 {content}
             </ReactMarkdown>
-        </div>
+        </div >
     )
 }
