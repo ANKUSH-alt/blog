@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     MONGODB_URL: str = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
     MONGODB_DB_NAME: str = os.getenv("MONGODB_DB_NAME", "aieracademy_db")
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
-    OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "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")
+    OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
     # Email / SMTP settings for OTP
     SMTP_HOST: str = os.getenv("SMTP_HOST", "smtp.gmail.com")
     SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
