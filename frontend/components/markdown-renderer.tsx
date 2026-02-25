@@ -136,8 +136,22 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
 
                                         if (query) {
                                             try {
+                                                // Sanitize query to exactly 1-2 generic keywords to prevent 404s from Unsplash
+                                                // Even if AI didn't follow the short prompt rule, we force it here.
+                                                const decodedQuery = decodeURIComponent(query);
+                                                // Extract just the first 1-2 actual words, ignoring punctuation
+                                                const cleanKeywords = decodedQuery
+                                                    .replace(/[^\w\s-]/g, ' ')
+                                                    .split(/[\s]+/)
+                                                    .filter(w => w.length > 2) // Ignore tiny words like 'a', 'of'
+                                                    .slice(0, 2)
+                                                    .join(',');
+
+                                                // Fallback to "technology" if somehow cleaning nuked the prompt
+                                                const finalQuery = cleanKeywords || "technology";
+
                                                 const accessKey = process.env.NEXT_PUBLIC_UNSPLASH_ACCESS_KEY;
-                                                const url = `https://api.unsplash.com/photos/random?query=${query}&client_id=${accessKey}`;
+                                                const url = `https://api.unsplash.com/photos/random?query=${encodeURIComponent(finalQuery)}&client_id=${accessKey}`;
                                                 const res = await fetchImageWithTimeout(url);
                                                 const data = await res.json();
 
