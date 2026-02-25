@@ -131,12 +131,20 @@ class AIService:
             print(f"Enhanced prompt: {enhanced_prompt}")
             
             encoded_prompt = urllib.parse.quote(enhanced_prompt)
-            # Use random seed to avoid caching same image
-            import random
-            seed = random.randint(1, 999999)
-            image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true&seed={seed}"
             
-            print(f"Successfully generated Image URL: {image_url}")
+            # Fetch from Unsplash using backend secret key
+            import httpx
+            unsplash_url = f"https://api.unsplash.com/photos/random?query={encoded_prompt}"
+            headers = {"Authorization": f"Client-ID {settings.UNSPLASH_SECRET_KEY}"}
+            
+            async with httpx.AsyncClient() as hc:
+                res = await hc.get(unsplash_url, headers=headers)
+                if res.status_code != 200:
+                    raise ValueError(f"Unsplash API error: {res.text}")
+                data = res.json()
+                image_url = data.get('urls', {}).get('regular', '')
+            
+            print(f"Successfully fetched Image URL from Unsplash: {image_url}")
             return {"url": image_url, "prompt": enhanced_prompt}
             
         except Exception as e:
