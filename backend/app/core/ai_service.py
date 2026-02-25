@@ -15,13 +15,13 @@ class AIService:
         prompt = f"Generate a comprehensive, engaging blog post about {topic} at a {difficulty} level. " \
                  f"It should be approximately {word_count} words long. " \
                  f"CRITICAL: Structure the content clearly using point-wise lists (bullet points) for better readability. " \
-                 f"DO NOT use any emojis. To explain concepts visually, include highly relevant topic images using this markdown syntax: `![alt text](unsplash:highly%20detailed%20description%20of%20concept)` where the URL path is a URL-encoded descriptive prompt. "
+                 f"DO NOT use any emojis. To explain concepts visually, include highly relevant topic images using this markdown syntax: `![alt text](unsplash:keyword1,keyword2)` where the URL path is EXACTLY 1 to 2 broad, generic, comma-separated keywords (e.g., `unsplash:technology,data` NOT a full sentence). "
         if include_code:
             prompt += "Include relevant Python code examples. "
         if include_diagrams:
             prompt += "Include Mermaid.js diagram code where appropriate. "
         
-        system_prompt = "You are an expert technical blog writer. Output ONLY a valid JSON object with the following keys: 'title', 'content', 'seo_title', 'seo_description'. For 'content', use Markdown, heavily use bullet points, use 'unsplash:prompt' for images, and NEVER use emojis."
+        system_prompt = "You are an expert technical blog writer. Output ONLY a valid JSON object with the following keys: 'title', 'content', 'seo_title', 'seo_description'. For 'content', use Markdown, heavily use bullet points, use 'unsplash:keyword1,keyword2' for images (maximum 2 generic keywords), and NEVER use emojis."
 
         try:
             response = await client.chat.completions.create(
@@ -64,7 +64,7 @@ class AIService:
                 "CRITICAL RULES: "
                 "1. DO NOT use ANY emojis in your responses. Ever. "
                 "2. Structure your explanations strictly using concise point-wise lists (bullet points). "
-                "3. To explain topics visually, you MUST inject image placeholders using Markdown. Use this format: `![Description](unsplash:detailed%20url%20encoded%20description%20of%20image)`."
+                "3. To explain topics visually, you MUST inject image placeholders using Markdown. Use this format: `![Description](unsplash:keyword1,keyword2)`. The unsplash query MUST BE exactly 1-2 broad, generic keywords (like 'code,abstract'), NEVER a full sentence."
             )
             messages = [{"role": "system", "content": tutor_prompt}]
             for msg in history:
@@ -99,7 +99,7 @@ class AIService:
             # Inject strict rule modifications into whatever the chosen base system prompt is
             enhanced_sys_prompt = system_prompt + (
                 " CRITICAL RULES: 1. NO EMOJIS EVER. 2. Use point-wise lists (bullet points) extensively. "
-                "3. ALWAYS include visual aids using Markdown images: `![alt text](unsplash:url%20encoded%20visual%20description)`."
+                "3. ALWAYS include visual aids using Markdown images: `![alt text](unsplash:keyword1,keyword2)`. The query MUST BE 1-2 generic keywords only (e.g., 'technology,abstract')."
             )
             messages = [{"role": "system", "content": enhanced_sys_prompt}]
             for msg in history:
