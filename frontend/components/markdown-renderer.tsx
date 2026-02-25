@@ -78,9 +78,11 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
                     },
                     img: ({ src, alt, ...props }) => {
                         const FallbackImage = () => {
-                            const [imgSrc, setImgSrc] = useState(src);
+                            const isIntercepted = typeof src === 'string' && (src.includes('image.pollinations.ai/prompt/') || src.startsWith('unsplash:'));
+                            const [imgSrc, setImgSrc] = useState(isIntercepted ? "" : src);
                             const [hasError, setHasError] = useState(false);
                             const [isLoading, setIsLoading] = useState(true);
+                            const [retryCount, setRetryCount] = useState(0);
 
                             useEffect(() => {
                                 // Only proceed if src is a string
@@ -90,16 +92,8 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
                                     return;
                                 }
 
-                                // If it's a direct URL, set it and stop loading
-                                if (src.startsWith('http')) {
-                                    setImgSrc(src);
-                                    setIsLoading(false);
-                                    setHasError(false);
-                                    return;
-                                }
-
                                 // Handle special image generation/fetching cases
-                                if (src.includes('image.pollinations.ai/prompt/') || src.startsWith('unsplash:')) {
+                                if (isIntercepted) {
                                     let query = "";
                                     if (src.includes('image.pollinations.ai/prompt/')) {
                                         const match = src.match(/\/prompt\/([^?]+)/);
@@ -132,18 +126,26 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
                                         setHasError(true);
                                         setIsLoading(false);
                                     }
+                                } else if (src.startsWith('http') || src.startsWith('/')) {
+                                    // If it's a direct generic URL, set it and stop loading
+                                    setImgSrc(src);
+                                    setIsLoading(false);
+                                    setHasError(false);
                                 } else {
                                     // If we got here and it's not a URL or a special tag, it's likely a broken tag
                                     setHasError(true);
                                     setIsLoading(false);
                                 }
-                            }, [src]);
+                            }, [src, retryCount, isIntercepted]);
 
                             const handleRetry = () => {
                                 setIsLoading(true);
                                 setHasError(false);
-                                if (typeof src === 'string') {
-                                    // Append a unique query parameter to force a re-fetch
+                                if (isIntercepted) {
+                                    setImgSrc("");
+                                    setRetryCount(prev => prev + 1);
+                                } else if (typeof src === 'string') {
+                                    // Append a unique query parameter to force a re-fetch of basic URLs
                                     setImgSrc(src + (src.includes('?') ? '&' : '?') + 'retry=' + new Date().getTime());
                                 }
                             };
