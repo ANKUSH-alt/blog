@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, status
 from typing import List, Optional
 from app.models.base_models import Blog
 from app.schemas.blog import BlogCreate, BlogOut, BlogGenerate
+from beanie import PydanticObjectId
 
 router = APIRouter(prefix="/blogs", tags=["blogs"])
 
@@ -35,6 +36,18 @@ async def get_blog(slug: str):
     if not blog:
         raise HTTPException(status_code=404, detail="Blog not found")
     return blog
+
+@router.delete("/{blog_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_blog(blog_id: str):
+    try:
+        oid = PydanticObjectId(blog_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid blog ID format")
+    blog = await Blog.get(oid)
+    if not blog:
+        raise HTTPException(status_code=404, detail="Blog not found")
+    await blog.delete()
+
 
 @router.post("/generate", response_model=BlogCreate)
 def generate_blog_ai(request: BlogGenerate):
