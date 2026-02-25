@@ -234,31 +234,31 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
                                             {...props}
                                         />
                                     ) : hasError ? (
-                                        <span className="flex flex-col items-center justify-center w-full relative group/fallback">
+                                        <span className="flex flex-col items-center justify-center w-full relative group/fallback min-h-[250px] overflow-hidden rounded-2xl border border-white/5 bg-zinc-950/80 my-8">
                                             <img
                                                 src="/assets/fallback-image.svg"
                                                 alt="Fallback placeholder"
-                                                className="rounded-2xl max-w-full w-full object-cover opacity-80 grayscale-[20%]"
+                                                className="absolute inset-0 w-full h-full object-cover opacity-30 mix-blend-luminosity pointer-events-none"
                                                 loading="lazy"
                                             />
-                                            <span className="absolute inset-0 flex flex-col items-center justify-center text-center p-8 bg-black/40 backdrop-blur-sm rounded-2xl opacity-0 group-hover/fallback:opacity-100 transition-opacity duration-300">
+                                            <span className="relative z-10 flex flex-col items-center justify-center text-center p-8 w-full h-full">
                                                 <span className="block max-w-md">
-                                                    <strong className="block text-white font-semibold text-lg mb-2">Image visualization unavailable</strong>
-                                                    <span className="block text-sm text-zinc-300 leading-relaxed drop-shadow-md">
+                                                    <strong className="block text-white/90 font-semibold text-lg mb-2">Image visualization unavailable</strong>
+                                                    <span className="block text-sm text-zinc-400 leading-relaxed drop-shadow-md">
                                                         We couldn't generate or load this visualization right now.
-                                                        {alt && <span className="block mt-1 italic opacity-80">&quot;{alt}&quot;</span>}
+                                                        {alt && <span className="block mt-2 italic opacity-80 text-zinc-500">&quot;{alt}&quot;</span>}
                                                     </span>
                                                 </span>
 
                                                 {retryCount < MAX_RETRIES ? (
                                                     <button
                                                         onClick={(e) => { e.preventDefault(); handleRetry(); }}
-                                                        className="mt-4 px-5 py-2.5 rounded-xl bg-white/10 text-white border border-white/20 hover:bg-white hover:text-black hover:shadow-lg transition-all font-semibold flex items-center gap-2 text-sm backdrop-blur-md"
+                                                        className="mt-6 px-5 py-2.5 rounded-xl bg-white/5 text-white border border-white/10 hover:bg-white/10 hover:shadow-lg transition-all font-semibold flex items-center gap-2 text-sm backdrop-blur-md"
                                                     >
                                                         <Zap className="w-4 h-4" /> Try Again {retryCount > 0 && `(${retryCount}/${MAX_RETRIES})`}
                                                     </button>
                                                 ) : (
-                                                    <span className="text-xs object-bottom text-white/70 mt-4 px-3 py-1 bg-black/40 rounded-full backdrop-blur-md border border-white/10">
+                                                    <span className="text-xs object-bottom text-white/50 mt-6 px-4 py-2 bg-black/40 rounded-full backdrop-blur-md border border-white/5">
                                                         Maximum retry attempts reached
                                                     </span>
                                                 )}
