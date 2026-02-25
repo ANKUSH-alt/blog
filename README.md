@@ -43,7 +43,7 @@ Our platform is divided into a decoupled architecture for maximum scalability an
 ### **Backend (API)**
 - **Framework**: [FastAPI](https://fastapi.tiangolo.com/) (Python)
 - **AI Integration**: Custom services interacting with LLM APIs (Gemini 2.0 via Google/OpenRouter).
-- **Database**: PostgreSQL integration for user management and content storage.
+- **Database**: MongoDB integration via Beanie engine for user management and content storage.
 
 ---
 
@@ -75,7 +75,8 @@ pip install -r requirements.txt
 Create a `.env` file in the `backend/` directory:
 ```env
 # Database
-DATABASE_URL=postgresql://user:password@localhost/dbname
+MONGODB_URL=mongodb://localhost:27017
+MONGODB_DB_NAME=aieracademy_db
 
 # AI and External APIs
 GEMINI_API_KEY=your_gemini_or_openrouter_api_key
