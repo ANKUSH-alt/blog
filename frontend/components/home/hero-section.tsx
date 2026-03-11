@@ -73,7 +73,7 @@ export default function HeroSection() {
                     <h1 className="text-7xl md:text-8xl lg:text-8xl font-black tracking-tighter mb-8 leading-[1.1]">
                         Learn AI From Scratch to <br className="hidden md:block" />
                         <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 animate-gradient-x">
-                            Genretive AI
+                            Generative AI
                         </span>
                     </h1>
 

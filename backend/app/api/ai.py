@@ -17,6 +17,8 @@ class AssistantRequest(BaseModel):
     message: str
     history: List[dict] = []
     system_prompt: str = "You are a helpful AI Assistant."
+    image_data: Optional[str] = None  # base64 data URL for image uploads
+    model: str = "google/gemini-2.0-flash-001"
 
 class QuizRequest(BaseModel):
     content: str
@@ -30,6 +32,19 @@ class ImageRequest(BaseModel):
 async def generate_image(request: ImageRequest):
     try:
         result = await AIService.generate_image(request.prompt)
+        return {"url": result["url"], "prompt": result["prompt"]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class VideoRequest(BaseModel):
+    prompt: str
+
+
+@router.post("/generate-video")
+async def generate_video(request: VideoRequest):
+    try:
+        result = await AIService.generate_video(request.prompt)
         return {"url": result["url"], "prompt": result["prompt"]}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -67,5 +82,5 @@ async def generate_quiz(request: QuizRequest):
 
 @router.post("/assistant")
 async def ai_assistant(request: AssistantRequest):
-    response = await AIService.get_assistant_response(request.message, request.history, request.system_prompt)
+    response = await AIService.get_assistant_response(request.message, request.history, request.system_prompt, request.image_data, request.model)
     return {"response": response}
