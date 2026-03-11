@@ -30,9 +30,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Create uploads directory if it doesn't exist
-os.makedirs("uploads/profiles", exist_ok=True)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+# Create uploads directory if it doesn't exist. On Vercel, the file system is read-only except for /tmp.
+UPLOAD_DIR = "uploads/profiles"
+try:
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+except OSError:
+    # Fallback for serverless environments (like Vercel) where FS is read-only
+    UPLOAD_DIR = "/tmp/uploads/profiles"
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory="/tmp/uploads"), name="uploads")
 
 app.include_router(auth.router)
 app.include_router(blogs.router)

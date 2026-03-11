@@ -228,8 +228,14 @@ async def upload_avatar(
 
     # Generate a unique filename
     filename = f"{uuid.uuid4()}{ext}"
-    os.makedirs("uploads/profiles", exist_ok=True)
-    file_path = os.path.join("uploads/profiles", filename)
+    upload_dir = "uploads/profiles"
+    try:
+        os.makedirs(upload_dir, exist_ok=True)
+    except OSError:
+        upload_dir = "/tmp/uploads/profiles"
+        os.makedirs(upload_dir, exist_ok=True)
+        
+    file_path = os.path.join(upload_dir, filename)
 
     # Save the file
     try:
@@ -243,6 +249,7 @@ async def upload_avatar(
         )
 
     # Update user profile picture path
+    # If it was saved in /tmp, the static mount handles /uploads routing either way
     current_user.profile_picture = f"/uploads/profiles/{filename}"
     await current_user.save()
     
